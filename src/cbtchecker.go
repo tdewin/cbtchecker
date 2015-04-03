@@ -85,6 +85,43 @@ func writeFile(filename *string,interval int, block int) {
 	}
 }
 
+func moveFile(filename *string, block int) {
+        fstat, err := os.Stat(*filename)
+        if err != nil {
+                if os.IsNotExist(err) {
+                        fmt.Printf("File does not exist %s\n",*filename)
+                } else {
+                        fmt.Printf("Strange error %s\n",*filename)
+                }
+        } else {
+                f, err := os.OpenFile(*filename,os.O_RDWR,os.FileMode(0666))
+                check(err)
+                defer f.Close()
+
+		blockkb := block*1024
+                block64kb := int64(blockkb)
+
+                fsize := fstat.Size()
+                moves := int64(0)
+
+		reader := make([]byte, blockkb)
+		firstblock := make([]byte, blockkb)
+		almostlast := (fsize-block64kb)
+
+		ctr := int64(0)
+	        for ; ctr < almostlast;ctr += block64kb {
+			f.ReadAt(reader,ctr+block64kb)
+                        f.WriteAt(reader,ctr)
+                        moves += 1
+                }
+		f.WriteAt(firstblock,ctr)
+		moves++
+
+                fmt.Printf("Did %d moves\n",moves)
+        }
+}
+
+
 func main() () {
 	filename := flag.String("file","/tmp/file","Provide file to work on")
 	action := flag.String("action","write","provide 'create' to make the file, or 'write' or 'read'  to do action")
@@ -105,6 +142,9 @@ func main() () {
 		}
 		case "write": {
 			writeFile(filename,*interval,*block)
+		} 
+		case "move": {
+			moveFile(filename,*block)
 		} 
 	}
 }
