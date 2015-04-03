@@ -19,6 +19,36 @@ func randomKB(kbs int64) ([]byte) {
 	rand.Read(rkb)
 	return rkb 
 }
+func letterKB(kbs int64,letter int64) ([]byte) {
+	rkb := make([]byte, (1024*kbs))
+	for index, _ := range rkb {
+		rkb[index] = byte(65+int(letter%26))
+	}
+	return rkb
+}
+func createDedupFile(filename *string, sizekb int64, block int64) {
+        if _, err := os.Stat(*filename); err != nil {
+                if os.IsNotExist(err) {
+                        fmt.Printf("Creating file %s\n",*filename)
+                        f, err := os.Create(*filename)
+                        check(err)
+                        defer f.Close()
+			
+			ctr := int64(0)
+
+                        for rb := int64(0);rb<sizekb;rb += block {
+                                _, err := f.Write(letterKB(block,ctr))
+                                check(err)
+				ctr = (ctr+1)%26
+                        }
+                } else {
+                        fmt.Printf("Strange error on %s\n",*filename)
+                }
+        } else {
+                fmt.Printf("File already exists %s\n",*filename)
+        }
+
+}
 func createFile(filename *string,sizekb int64) {
 	if _, err := os.Stat(*filename); err != nil {
 		if os.IsNotExist(err) {
@@ -108,7 +138,9 @@ func moveFile(filename *string, block int) {
 		firstblock := make([]byte, blockkb)
 		almostlast := (fsize-block64kb)
 
+
 		ctr := int64(0)
+		f.ReadAt(firstblock,0)
 	        for ; ctr < almostlast;ctr += block64kb {
 			f.ReadAt(reader,ctr+block64kb)
                         f.WriteAt(reader,ctr)
@@ -124,7 +156,7 @@ func moveFile(filename *string, block int) {
 
 func main() () {
 	filename := flag.String("file","/tmp/file","Provide file to work on")
-	action := flag.String("action","write","provide 'create' to make the file, or 'write' or 'read'  to do action")
+	action := flag.String("action","write","'create' | 'creatededup' | 'write' | 'read' | move allowed")
 	sizein := flag.Int64("size",1024,"Size in mb, by default 1024 or 1GB. works with create")
 	interval := flag.Int("interval",64,"interval size in kb")
 	block := flag.Int("block",64,"Block size in kb to touch, then jump to the next interval") 
@@ -136,6 +168,9 @@ func main() () {
 	switch *action {
 		case "create": {
 			createFile(filename,sizekb)	
+		}
+		case "creatededup": {
+			 createDedupFile(filename,sizekb,int64(*block))
 		}
 		case "read": {
 			readFile(filename)
