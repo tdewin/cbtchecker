@@ -5,7 +5,8 @@ import (
 	"flag"
 	"os"
 	"io"
-	"crypto/rand"
+	rand "crypto/rand"
+	mrand "math/rand"
 )
  	
 
@@ -115,6 +116,88 @@ func writeFile(filename *string,interval int, block int) {
 	}
 }
 
+func createmap(banks int64) ([]bool) {
+	createmap := make([]bool,banks) 
+	for ctr := int64(0);ctr < banks;ctr++ {
+		createmap[ctr] = false
+	}
+	return createmap
+}
+func randomMoveFile(filename *string, block int) {
+        fstat, err := os.Stat(*filename)
+        if err != nil {
+                if os.IsNotExist(err) {
+                        fmt.Printf("File does not exist %s\n",*filename)
+                } else {
+                        fmt.Printf("Strange error %s\n",*filename)
+                }
+        } else {
+                f, err := os.OpenFile(*filename,os.O_RDWR,os.FileMode(0666))
+                check(err)
+                defer f.Close()
+
+                blockkb := block*1024
+                block64kb := int64(blockkb)
+
+                fsize := fstat.Size()
+                moves := int64(0)
+
+		
+		//move on every 128MB, should make memory limitations lower and file jumping shorter
+		subblocking := int64(1024*1024*128)
+                ctr := int64(0)
+
+                for ; ctr < fsize;ctr += subblocking {
+			rangeStart := ctr
+			rangeEnd := ctr + subblocking
+			if (rangeEnd > fsize) {
+				rangeEnd = fsize
+			}
+
+			subblocks := (rangeEnd-rangeStart)/block64kb
+			markmap := createmap(subblocks)
+			fmt.Printf("\n%d - %d   --> %d\n",rangeStart,rangeEnd,subblocks)
+
+			reader := make([]byte, blockkb)
+			firstblock := make([]byte, blockkb)
+
+			prevblock := mrand.Int63n(subblocks)
+			f.ReadAt(firstblock,(rangeStart+(prevblock*block64kb)))
+			markmap[prevblock] = true			
+			
+			for x := int64(1);x < subblocks;x++ {
+				newblock := mrand.Int63n(subblocks)
+				safety := int64(0)
+				for ;markmap[newblock];newblock = (newblock+1)%subblocks {
+					if safety > subblocks {
+						panic("AAAAAAAAh running around in circles")
+					}
+					safety++
+				}
+				markmap[newblock] = true
+
+				blockin := (rangeStart+(newblock*block64kb))
+				blockout := (rangeStart+(prevblock*block64kb))
+					
+				f.ReadAt(reader,blockin)
+				f.WriteAt(reader,blockout)
+
+				prevblock = newblock
+
+//				fmt.Printf("( %d > %d ) ----  ",blockin,blockout)
+				moves += 1
+			} 
+			f.WriteAt(firstblock,(rangeStart+(prevblock*block64kb)))
+			moves += 1
+
+                        
+                }
+
+                fmt.Printf("Did %d moves\n",moves)
+        }
+}
+
+
 func moveFile(filename *string, block int) {
         fstat, err := os.Stat(*filename)
         if err != nil {
@@ -180,6 +263,10 @@ func main() () {
 		} 
 		case "move": {
 			moveFile(filename,*block)
-		} 
+		}
+                case "randommove": {
+                        randomMoveFile(filename,*block)
+                }
+ 
 	}
 }
