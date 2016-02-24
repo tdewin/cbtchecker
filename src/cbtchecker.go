@@ -5,6 +5,8 @@ import (
 	"flag"
 	"os"
 	"io"
+	"strings"
+	"runtime"
 	rand "crypto/rand"
 	mrand "math/rand"
 )
@@ -239,12 +241,21 @@ func moveFile(filename *string, block int) {
 
 func main() () {
 	filename := flag.String("file","/tmp/file","Provide file to work on")
-	action := flag.String("action","write","'create' | 'creatededup' | 'write' | 'read' | move allowed")
+	action := flag.String("action","showfile","'create' | 'creatededup' | 'write' | 'read' | move allowed")
 	sizein := flag.Int64("size",1024,"Size in mb, by default 1024 or 1GB. works with create")
 	interval := flag.Int("interval",64,"interval size in kb")
 	block := flag.Int("block",64,"Block size in kb to touch, then jump to the next interval") 
 	flag.Parse()
 
+	
+	if runtime.GOOS == "windows" {
+		if strings.EqualFold(*filename,"/tmp/file") {
+			tmpw :=  os.ExpandEnv("${TEMP}\\file")
+			filename = &tmpw
+		}
+	}
+	
+	
 	sizekb := int64((*sizein)*1024)
 
 	
@@ -264,9 +275,11 @@ func main() () {
 		case "move": {
 			moveFile(filename,*block)
 		}
-                case "randommove": {
-                        randomMoveFile(filename,*block)
-                }
- 
+		case "randommove": {
+			randomMoveFile(filename,*block)
+		}
+		case "showfile": {
+			fmt.Printf("Working on file %s, use -action to define real action",*filename)
+		}
 	}
 }
